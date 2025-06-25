@@ -1,1 +1,136 @@
 # sales_walmart
+create database Walmart_db;
+SELECT COUNT(*) FROM WALMART;
+SELECT * FROM WALMART;
+
+#Exploratory Data Analysis with SQL
+SELECT DISTINCT PAYMENT_METHOD FROM WALMART;
+
+#Total transactions by each payment method
+SELECT PAYMENT_METHOD, COUNT(*) FROM walmart
+GROUP BY PAYMENT_METHOD;
+
+#Total number of stores
+SELECT COUNT(DISTINCT BRANCH) FROM WALMART;
+
+SELECT MIN(QUANTITY) FROM WALMART;
+
+#BUSINESS PROBLEMS
+# Q1. FIND THE DIFFERENT PAYMENT METHODS AND NUMBER OF TRANSACTIONS, NUMBER OF QUANTITY SOLD
+SELECT PAYMENT_METHOD, COUNT(*), SUM(QUANTITY) FROM walmart
+GROUP BY PAYMENT_METHOD;
+
+# Q2. IDENTIFY THE HIGHEST-RATED CATEGORY IN ECH BRANCH, DISPLAYING THE BRANCH, CATEGORY, AVG RATING
+SELECT * FROM
+( SELECT BRANCH, CATEGORY, ROUND(AVG(RATING), 2) AS AVG_RATING,
+RANK() OVER(PARTITION BY BRANCH ORDER BY ROUND(AVG(RATING), 2) DESC) AS ranking
+FROM WALMART
+GROUP BY BRANCH, CATEGORY
+ORDER BY BRANCH, AVG_RATING DESC
+) AS TEMP
+WHERE ranking = 1;
+
+# Q3. IDENTIFY THE BUSIEST DAY FOR EACH BRANCH BASED ON THE NUMBER OF TRANSACTIONS
+ SELECT date, STR_TO_DATE(DATE, '%d/%m/%y') AS NEW_DATE, DATE_FORMAT(STR_TO_DATE(DATE, '%d/%m/%y'), '%W') AS Day_name FROM WALMART;
+
+SELECT 
+Branch, 
+DATE_FORMAT(STR_TO_DATE(DATE, '%d/%m/%y'), '%W') AS Day_name, 
+COUNT(*) AS No_of_Transactions
+FROM WALMART
+GROUP BY Branch, Day_name
+ORDER BY Branch, No_of_Transactions DESC;
+
+SELECT * FROM
+(SELECT 
+Branch, 
+DATE_FORMAT(STR_TO_DATE(DATE, '%d/%m/%y'), '%W') AS Day_name, 
+COUNT(*) AS No_of_Transactions,
+RANK() OVER(PARTITION BY Branch ORDER BY COUNT(*) DESC) AS ranking
+FROM WALMART
+GROUP BY Branch, Day_name
+) AS TEMP1
+WHERE ranking = 1;
+
+# Q4. DETERMINE THE AVERAGE, MIN, MAX RATING OF CATEGORY FOR EACH CITY
+SELECT 
+CITY,
+CATEGORY,
+MAX(RATING) AS MIN_RATING,
+MIN(RATING) AS MAX_RATING,
+ROUND(AVG(RATING), 2) AS AVG_RATING
+FROM walmart
+GROUP BY CITY, CATEGORY;
+
+# Q5. CALCULATE THE TOTAL PROFIT FOR EACH CATEGORY BY CONSIDERING TOTAL PROFIT AS (UNIT PRICE * QUANTITY * PROFIT_MARGIN). 
+# LIST THE CATEGORY AND TOTAL PROFIT ORDERED FROM HIGHEST TO LOWEST PROFIT
+SELECT 
+CATEGORY,
+ROUND(SUM(TOTAL * PROFIT_MARGIN), 2) AS PROFIT
+FROM WALMART
+GROUP BY CATEGORY
+ORDER BY PROFIT DESC;
+
+# Q6. DETERMINE THE MSOT COMMON BILLING METHOD FOR EACH BRANCH
+#DISPLAY BRANCH AND THE PREFERED PAYMENT METHOD
+WITH CTE AS
+(
+SELECT BRANCH, PAYMENT_METHOD, COUNT(*) AS TOTAL_TRANSACTIONS,
+RANK() OVER(PARTITION BY BRANCH ORDER BY COUNT(*) DESC) AS RANKING
+FROM WALMART
+GROUP BY BRANCH, PAYMENT_METHOD
+)
+SELECT * FROM CTE 
+WHERE RANKING = 1;
+
+# Q7. CATEGORIZE SALES INTO 3 GROUPS MORNING, AFTERNOON, EVENING
+#FIND NUMBER OF INVOICES IN EACH SHIFT
+SELECT 
+HOUR(STR_TO_DATE(time, '%H:%i:%s')) as only_hour,
+	CASE 
+		WHEN HOUR(STR_TO_DATE(time, '%H:%i:%s')) < 12 THEN 'Morning'
+		WHEN HOUR(STR_TO_DATE(time, '%H:%i:%s')) BETWEEN 12 AND 17 THEN 'Afternoon'
+		ELSE 'Evening'
+        END shift_time
+FROM walmart;
+
+SELECT
+branch, 
+CASE 
+		WHEN HOUR(STR_TO_DATE(time, '%H:%i:%s')) < 12 THEN 'Morning'
+		WHEN HOUR(STR_TO_DATE(time, '%H:%i:%s')) BETWEEN 12 AND 17 THEN 'Afternoon'
+		ELSE 'Evening'
+        END shift_time,
+        count(*) as no_of_invoices
+FROM walmart
+GROUP BY branch, shift_time
+order by branch, no_of_invoices desc;
+
+# Q8. IDENTIFY 5 BRANCHES WITHT HE HIGHEST DECREASE RATIO IN REVENUE 
+#COMPARED TO LAST YEAR 
+with revenue_2022 as
+(
+SELECT 
+branch,
+SUM(total) as revenue
+from walmart
+where year(str_to_date(date, '%d/%m/%y')) = 2022
+group by branch
+),
+revenue_2023 as 
+(
+SELECT 
+branch,
+SUM(total) as revenue
+from walmart
+where year(str_to_date(date, '%d/%m/%y')) = 2023
+group by branch
+)
+select ls.branch, ls.revenue as last_year_revenue, cs.revenue as current_year_revenue,
+round(((ls.revenue-cs.revenue)/(ls.revenue)) * 100 , 2) as percentage_decrease
+from revenue_2022 as ls
+join revenue_2023 as cs
+on ls.branch = cs.branch
+where ls.revenue > cs.revenue
+order by percentage_decrease desc
+limit 5;
